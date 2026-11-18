@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>កម្មវិធីស្កេនអក្សរខ្មែរ - Khmer OCR</title>
+
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Bokor & Kantumruy Pro -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bokor&family=Kantumruy+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              950: '#070d1f',
+              900: '#0b132b',
+              800: '#1c2541',
+              700: '#273459',
+              600: '#3a506b',
+            },
+            crimson: {
+              500: '#ef233c',
+              600: '#e63946',
+              700: '#d90429',
+            }
+          },
+          fontFamily: {
+            bokor: ['"Bokor"', 'serif'],
+            kantumruy: ['"Kantumruy Pro"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: #0b132b;
+      color: #f8fafc;
+      font-family: 'Kantumruy Pro', sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .font-bokor-kh {
+      font-family: 'Bokor', serif;
+      line-height: 1.75;
+      letter-spacing: 0.01em;
+    }
+
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b132b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #273459;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3a506b;
+    }
+
+    /* Smooth pulse loader */
+    @keyframes scanLine {
+      0% { top: 0%; opacity: 0.2; }
+      50% { top: 92%; opacity: 0.9; }
+      100% { top: 0%; opacity: 0.2; }
+    }
+    .scanner-beam {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #e63946, #ff758f, #e63946, transparent);
+      box-shadow: 0 0 12px #e63946;
+      animation: scanLine 2.2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-navy-900 text-slate-100 antialiased selection:bg-crimson-600 selection:text-white">
+
+  <!-- Main App Container -->
+  <div id="app" class="max-w-xl mx-auto px-4 pt-4 pb-24 flex flex-col gap-4">
+
+    <!-- Top Header -->
+    <header class="flex items-center justify-between bg-navy-800/90 border border-navy-700 rounded-2xl px-4 py-3 shadow-lg">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-crimson-600 flex items-center justify-center shadow-md shadow-crimson-700/40 shrink-0">
+          <!-- Document Scan SVG Icon -->
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 9h10M7 13h10M7 17h6" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-bokor-kh text-xl sm:text-2xl text-white leading-none pt-1">ស្កេនអក្សរខ្មែរឆ្លាតវៃ</h1>
+          <p class="text-xs text-slate-300 mt-0.5">ដកស្រង់អត្ថបទ និងកែអក្ខរាវិរុទ្ធស្វ័យប្រវត្តិ</p>
+        </div>
+      </div>
+
+      <!-- History Drawer Toggle Button -->
+      <button id="btn-open-history" type="button" class="relative p-2.5 rounded-xl bg-navy-900 hover:bg-navy-700 border border-navy-700 text-slate-200 transition active:scale-95" title="ប្រវត្តិនៃការស្កេន">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span id="history-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-crimson-600 text-[10px] font-bold text-white flex items-center justify-center">0</span>
+      </button>
+    </header>
+
+    <!-- Mode Selection Tabs -->
+    <section aria-label="ជម្រើសមុខងារស្កេន" class="bg-navy-800 border border-navy-700 rounded-2xl p-2 shadow-md">
+      <div class="grid grid-cols-3 gap-1.5" id="mode-tabs">
+        <button type="button" data-mode="smart" class="mode-btn active bg-crimson-600 text-white rounded-xl py-2.5 px-2 text-center transition font-medium text-xs sm:text-sm shadow">
+          <span class="font-bokor-kh block text-sm sm:text-base leading-tight">កែអក្ខរាវិរុទ្ធ</span>
+          <span class="text-[10px] opacity-90 block mt-0.5">ស្កេន + កែត្រូវ</span>
+        </button>
+        <button type="button" data-mode="table" class="mode-btn bg-navy-900/70 text-slate-300 hover:bg-navy-700 rounded-xl py-2.5 px-2 text-center transition font-medium text-xs sm:text-sm">
+          <span class="font-bokor-kh block text-sm sm:text-base leading-tight">បញ្ជីតម្លៃ / តារាង</span>
+          <span class="text-[10px] opacity-75 block mt-0.5">រៀបជួរមានរបៀប</span>
+        </button>
+        <button type="button" data-mode="exact" class="mode-btn bg-navy-900/70 text-slate-300 hover:bg-navy-700 rounded-xl py-2.5 px-2 text-center transition font-medium text-xs sm:text-sm">
+          <span class="font-bokor-kh block text-sm sm:text-base leading-tight">តាមរូបភាពដើម</span>
+          <span class="text-[10px] opacity-75 block mt-0.5">ដកស្រង់ទាំងស្រុង</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Image Upload / Camera / Preview Card -->
+    <section class="bg-navy-800 border border-navy-700 rounded-2xl p-4 shadow-lg flex flex-col gap-3">
+      
+      <!-- Hidden File Inputs -->
+      <input id="input-camera" type="file" accept="image/*" capture="environment" class="hidden" />
+      <input id="input-gallery" type="file" accept="image/*" class="hidden" />
+
+      <!-- Empty State Dropzone -->
+      <div id="dropzone" class="border-2 border-dashed border-navy-600 hover:border-crimson-500 bg-navy-900/60 rounded-2xl p-6 text-center transition cursor-pointer flex flex-col items-center justify-center gap-3 min-h-[200px]">
+        <div class="w-14 h-14 rounded-2xl bg-navy-800 border border-navy-600 flex items-center justify-center text-crimson-500">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div>
+          <p class="font-bokor-kh text-lg text-white">ជ្រើសរើសរូបភាព ឬ ថតរូបឯកសារ</p>
+          <p class="text-xs text-slate-400 mt-1">គាំទ្ររូបភាពវិក្កយបត្រ សៀវភៅ អត្ថបទព្រីន ឬអក្សរសរសេរដៃ</p>
+        </div>
+      </div>
+
+      <!-- Image Preview Wrapper (Hidden initially) -->
+      <div id="preview-wrapper" class="hidden flex-col gap-3">
+        <div class="relative w-full bg-navy-950 rounded-xl overflow-hidden border border-navy-700 flex items-center justify-center min-h-[220px] max-h-[360px]">
+          <img id="preview-image" alt="រូបភាពដែលត្រូវស្កេន" class="max-w-full max-h-[340px] object-contain transition-transform duration-200" />
+          
+          <!-- Scanning Overlay Animation -->
+          <div id="scan-overlay" class="hidden absolute inset-0 bg-navy-950/60 backdrop-blur-[1px] flex flex-col items-center justify-center z-10">
+            <div class="scanner-beam"></div>
+            <div class="bg-navy-900/95 border border-navy-600 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3">
+              <svg class="w-5 h-5 text-crimson-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span id="loading-status-text" class="text-xs sm:text-sm font-medium text-white">កំពុងវិភាគរូបភាព និងផ្ទៀងផ្ទាត់អក្ខរាវិរុទ្ធខ្មែរ...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Image Quick Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-2 bg-navy-900/80 border border-navy-700 rounded-xl px-3 py-2">
+          <div class="flex items-center gap-1.5">
+            <button id="btn-rotate-left" type="button" class="p-2 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-200 text-xs flex items-center gap-1 transition active:scale-95" title="បង្វិលឆ្វេង">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+              <span class="hidden sm:inline">បង្វិលឆ្វេង</span>
+            </button>
+            <button id="btn-rotate-right" type="button" class="p-2 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-200 text-xs flex items-center gap-1 transition active:scale-95" title="បង្វិលស្តាំ">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+              </svg>
+              <span class="hidden sm:inline">បង្វិលស្តាំ</span>
+            </button>
+            <button id="btn-toggle-zoom" type="button" class="p-2 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-200 text-xs flex items-center gap-1 transition active:scale-95" title="ពង្រីក / បង្រួម">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+              </svg>
+              <span id="zoom-label">ពង្រីក</span>
+            </button>
+          </div>
+
+          <button id="btn-clear-image" type="button" class="px-3 py-1.5 rounded-lg bg-navy-800 hover:bg-crimson-700/30 text-crimson-500 border border-crimson-600/30 text-xs font-medium transition active:scale-95">
+            ប្តូររូបភាពថ្មី
+          </button>
+        </div>
+      </div>
+
+      <!-- Source Action Buttons (Camera / Gallery / Paste) -->
+      <div class="grid grid-cols-3 gap-2">
+        <button id="btn-camera" type="button" class="flex items-center justify-center gap-2 py-3 px-2 rounded-xl bg-navy-900 hover:bg-navy-700 border border-navy-600 text-white text-xs sm:text-sm font-medium transition active:scale-95">
+          <svg class="w-4 h-4 text-crimson-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>ថតរូបផ្ទាល់</span>
+        </button>
+
+        <button id="btn-gallery" type="button" class="flex items-center justify-center gap-2 py-3 px-2 rounded-xl bg-navy-900 hover:bg-navy-700 border border-navy-600 text-white text-xs sm:text-sm font-medium transition active:scale-95">
+          <svg class="w-4 h-4 text-crimson-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          <span>ជ្រើសរើសរូប</span>
+        </button>
+
+        <button id="btn-paste" type="button" class="flex items-center justify-center gap-2 py-3 px-2 rounded-xl bg-navy-900 hover:bg-navy-700 border border-navy-600 text-white text-xs sm:text-sm font-medium transition active:scale-95">
+          <svg class="w-4 h-4 text-crimson-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          <span>បិទភ្ជាប់រូប</span>
+        </button>
+      </div>
+
+      <!-- Primary Scan CTA Button -->
+      <button id="btn-scan" type="button" class="w-full py-3.5 px-5 rounded-xl bg-crimson-600 hover:bg-crimson-500 active:bg-crimson-700 text-white font-semibold text-base shadow-lg shadow-crimson-700/30 flex items-center justify-center gap-2.5 transition transform active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <span class="font-bokor-kh text-lg tracking-wide pt-0.5">ចាប់ផ្តើមស្កេន និងកែអក្ខរាវិរុទ្ធ</span>
+      </button>
+    </section>
+
+    <!-- Error / Status Alert Banner -->
+    <div id="alert-box" class="hidden rounded-2xl px-4 py-3 text-sm border flex items-start gap-3 transition">
+      <svg id="alert-icon" class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div class="flex-1">
+        <p id="alert-message" class="leading-relaxed"></p>
+      </div>
+      <button id="btn-close-alert" type="button" class="text-xs opacity-70 hover:opacity-100 p-1">បិទ</button>
+    </div>
+
+    <!-- Output & Spellcheck Editor Card -->
+    <section class="bg-navy-800 border border-navy-700 rounded-2xl p-4 shadow-lg flex flex-col gap-3">
+      
+      <!-- Output Card Header & Font Size Controls -->
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-crimson-500"></span>
+          <h2 class="font-bokor-kh text-lg text-white pt-0.5">លទ្ធផលអត្ថបទខ្មែរ</h2>
+        </div>
+
+        <!-- Font Size Selector -->
+        <div class="flex items-center gap-1 bg-navy-900 border border-navy-700 rounded-xl p-1 text-xs">
+          <span class="text-slate-400 px-1.5">ទំហំអក្សរ៖</span>
+          <button type="button" data-size="text-base" class="font-size-btn px-2 py-1 rounded-lg text-slate-300 hover:bg-navy-700 transition">តូច</button>
+          <button type="button" data-size="text-lg" class="font-size-btn active bg-crimson-600 text-white px-2 py-1 rounded-lg transition">មធ្យម</button>
+          <button type="button" data-size="text-xl" class="font-size-btn px-2 py-1 rounded-lg text-slate-300 hover:bg-navy-700 transition">ធំ</button>
+        </div>
+      </div>
+
+      <!-- Editable Khmer Bokor Textarea -->
+      <div class="relative">
+        <textarea
+          id="output-textarea"
+          rows="8"
+          placeholder="អត្ថបទខ្មែរដែលបានស្កេន និងកែអក្ខរាវិរុទ្ធរួចនឹងបង្ហាញនៅទីនេះ... លោកអ្នកក៏អាចវាយបញ្ចូល ឬកែសម្រួលដោយផ្ទាល់បានដែរ។"
+          class="w-full bg-navy-950 border border-navy-700 focus:border-crimson-500 focus:ring-1 focus:ring-crimson-500 rounded-xl p-4 text-white font-bokor-kh text-lg placeholder:text-slate-500 placeholder:font-kantumruy placeholder:text-sm outline-none resize-y transition"
+        ></textarea>
+      </div>
+
+      <!-- Character & Line Counter + Re-check Spelling Button -->
+      <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+        <div id="text-stats">ចំនួនតួអក្សរ៖ ០ | ចំនួនបន្ទាត់៖ ០</div>
+
+        <button id="btn-recheck-spelling" type="button" class="px-3 py-1.5 rounded-xl bg-navy-900 hover:bg-navy-700 border border-navy-600 text-slate-200 font-medium flex items-center gap-1.5 transition active:scale-95">
+          <svg class="w-3.5 h-3.5 text-crimson-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          <span>កែអក្ខរាវិរុទ្ធម្តងទៀត</span>
+        </button>
+      </div>
+
+      <!-- Action Buttons Row: Copy, Share, Clear -->
+      <div class="grid grid-cols-12 gap-2 pt-1">
+        <!-- Primary Copy Button -->
+        <button id="btn-copy" type="button" class="col-span-6 sm:col-span-6 py-3.5 px-4 rounded-xl bg-crimson-600 hover:bg-crimson-500 active:bg-crimson-700 text-white font-semibold text-sm sm:text-base shadow-md shadow-crimson-700/30 flex items-center justify-center gap-2 transition active:scale-95">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+          </svg>
+          <span>ចម្លងអត្ថបទ</span>
+        </button>
+
+        <!-- Share / Send to Telegram Button -->
+        <button id="btn-share" type="button" class="col-span-4 sm:col-span-4 py-3.5 px-3 rounded-xl bg-navy-900 hover:bg-navy-700 border border-navy-600 text-white font-medium text-xs sm:text-sm flex items-center justify-center gap-1.5 transition active:scale-95">
+          <svg class="w-4 h-4 text-crimson-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+          <span>ចែករំលែក</span>
+        </button>
+
+        <!-- Clear Text Button -->
+        <button id="btn-clear-text" type="button" class="col-span-2 sm:col-span-2 py-3.5 px-2 rounded-xl bg-navy-900 hover:bg-navy-700 border border-navy-600 text-slate-300 hover:text-crimson-500 font-medium text-xs sm:text-sm flex items-center justify-center transition active:scale-95" title="លុបអត្ថបទ">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-4 transition-all duration-200">
+    <div class="bg-crimson-600 text-white px-5 py-3 rounded-2xl shadow-2xl border border-crimson-500 flex items-center gap-2.5 text-sm font-medium whitespace-nowrap">
+      <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+      <span id="toast-text">បានចម្លងរួចរាល់!</span>
+    </div>
+  </div>
+
+  <!-- History Modal Drawer -->
+  <div id="history-modal" class="hidden fixed inset-0 z-50 bg-navy-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-navy-800 border-t sm:border border-navy-600 w-full max-w-lg rounded-t-3xl sm:rounded-2xl max-h-[82vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-navy-700">
+        <div>
+          <h3 class="font-bokor-kh text-xl text-white">ប្រវត្តិនៃការស្កេនថ្មីៗ</h3>
+          <p class="text-xs text-slate-400">ចុចលើធាតុណាមួយដើម្បីបើកយកមកប្រើម្តងទៀត</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btn-clear-history" type="button" class="text-xs text-crimson-500 hover:underline px-2 py-1">លុបទាំងអស់</button>
+          <button id="btn-close-history" type="button" class="p-2 rounded-xl bg-navy-900 text-slate-300 hover:text-white">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div id="history-list" class="p-4 overflow-y-auto flex flex-col gap-3">
+        <!-- History items injected dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. TELEGRAM MINI APP INITIALIZATION
+    // ==========================================
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      try {
+        tg.ready();
+        tg.expand();
+        if (tg.setHeaderColor) tg.setHeaderColor('#0b132b');
+        if (tg.setBackgroundColor) tg.setBackgroundColor('#0b132b');
+      } catch (e) {
+        console.debug('Telegram WebApp init skipped:', e);
+      }
+    }
+
+    function triggerHaptic(type = 'light') {
+      try {
+        if (tg?.HapticFeedback) {
+          if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+          else if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+          else tg.HapticFeedback.impactOccurred(type);
+        }
+      } catch (_) {}
+    }
+
+    // ==========================================
+    // 2. APPLICATION STATE & DOM REFERENCES
+    // ==========================================
+    const state = {
+      mode: 'smart', // 'smart' | 'table' | 'exact'
+      imageDataUrl: null,
+      rotation: 0,
+      isZoomed: false,
+      isLoading: false,
+      history: JSON.parse(localStorage.getItem('khmer_ocr_history_v1') || '[]')
+    };
+
+    const el = {
+      inputCamera: document.getElementById('input-camera'),
+      inputGallery: document.getElementById('input-gallery'),
+      dropzone: document.getElementById('dropzone'),
+      previewWrapper: document.getElementById('preview-wrapper'),
+      previewImage: document.getElementById('preview-image'),
+      scanOverlay: document.getElementById('scan-overlay'),
+      loadingStatusText: document.getElementById('loading-status-text'),
+      btnCamera: document.getElementById('btn-camera'),
+      btnGallery: document.getElementById('btn-gallery'),
+      btnPaste: document.getElementById('btn-paste'),
+      btnRotateLeft: document.getElementById('btn-rotate-left'),
+      btnRotateRight: document.getElementById('btn-rotate-right'),
+      btnToggleZoom: document.getElementById('btn-toggle-zoom'),
+      zoomLabel: document.getElementById('zoom-label'),
+      btnClearImage: document.getElementById('btn-clear-image'),
+      btnScan: document.getElementById('btn-scan'),
+      alertBox: document.getElementById('alert-box'),
+      alertMessage: document.getElementById('alert-message'),
+      btnCloseAlert: document.getElementById('btn-close-alert'),
+      outputTextarea: document.getElementById('output-textarea'),
+      textStats: document.getElementById('text-stats'),
+      btnRecheckSpelling: document.getElementById('btn-recheck-spelling'),
+      btnCopy: document.getElementById('btn-copy'),
+      btnShare: document.getElementById('btn-share'),
+      btnClearText: document.getElementById('btn-clear-text'),
+      toast: document.getElementById('toast'),
+      toastText: document.getElementById('toast-text'),
+      btnOpenHistory: document.getElementById('btn-open-history'),
+      historyBadge: document.getElementById('history-badge'),
+      historyModal: document.getElementById('history-modal'),
+      btnCloseHistory: document.getElementById('btn-close-history'),
+      btnClearHistory: document.getElementById('btn-clear-history'),
+      historyList: document.getElementById('history-list'),
+    };
+
+    // ==========================================
+    // 3. UI HELPERS (TOAST, ALERTS, STATS)
+    // ==========================================
+    let toastTimeout;
+    function showToast(message) {
+      el.toastText.textContent = message;
+      el.toast.classList.remove('opacity-0', 'translate-y-4');
+      el.toast.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        el.toast.classList.remove('opacity-100', 'translate-y-0');
+        el.toast.classList.add('opacity-0', 'translate-y-4');
+      }, 2400);
+    }
+
+    function showAlert(message, isError = true) {
+      el.alertMessage.textContent = message;
+      el.alertBox.classList.remove('hidden', 'bg-crimson-700/20', 'border-crimson-600/50', 'text-red-200', 'bg-emerald-900/30', 'border-emerald-600/50', 'text-emerald-200');
+      if (isError) {
+        el.alertBox.classList.add('bg-crimson-700/20', 'border-crimson-600/50', 'text-red-200');
+      } else {
+        el.alertBox.classList.add('bg-emerald-900/30', 'border-emerald-600/50', 'text-emerald-200');
+      }
+    }
+
+    function hideAlert() {
+      el.alertBox.classList.add('hidden');
+    }
+
+    function toKhmerDigits(num) {
+      const khDigits = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+      return String(num).replace(/\d/g, d => khDigits[d]);
+    }
+
+    function updateTextStats() {
+      const val = el.outputTextarea.value;
+      const chars = val.length;
+      const lines = val.trim() === '' ? 0 : val.split(/\r\n|\r|\n/).length;
+      el.textStats.textContent = `ចំនួនតួអក្សរ៖ ${toKhmerDigits(chars)} | ចំនួនបន្ទាត់៖ ${toKhmerDigits(lines)}`;
+    }
+
+    // ==========================================
+    // 4. IMAGE PROCESSING & ROTATION CANVAS
+    // ==========================================
+    function loadImageFile(file) {
+      if (!file || !file.type.startsWith('image/')) {
+        showAlert('សូមជ្រើសរើសឯកសារជារូបភាពតែប៉ុណ្ណោះ (JPG, PNG, WEBP)។');
+        return;
+      }
+      hideAlert();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        state.imageDataUrl = e.target.result;
+        state.rotation = 0;
+        state.isZoomed = false;
+        renderImagePreview();
+        triggerHaptic('light');
+      };
+      reader.onerror = () => {
+        showAlert('មិនអាចអានឯកសាររូបភាពនេះបានទេ សូមសាកល្បងម្តងទៀត។');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderImagePreview() {
+      if (!state.imageDataUrl) {
+        el.dropzone.classList.remove('hidden');
+        el.previewWrapper.classList.add('hidden');
+        el.previewWrapper.classList.remove('flex');
+        return;
+      }
+
+      el.dropzone.classList.add('hidden');
+      el.previewWrapper.classList.remove('hidden');
+      el.previewWrapper.classList.add('flex');
+
+      el.previewImage.src = state.imageDataUrl;
+      const scale = state.isZoomed ? 1.45 : 1;
+      el.previewImage.style.transform = `rotate(${state.rotation}deg) scale(${scale})`;
+      el.zoomLabel.textContent = state.isZoomed ? 'បង្រួម' : 'ពង្រីក';
+    }
+
+    // Bake rotation & optimize resolution before sending to Gemini OCR
+    function getProcessedBase64Image() {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          // Limit max dimension to 2048px for sharp OCR & fast upload
+          const maxDim = 2048;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            const ratio = Math.min(maxDim / width, maxDim / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+
+          const angle = ((state.rotation % 360) + 360) % 360;
+          if (angle === 90 || angle === 270) {
+            canvas.width = height;
+            canvas.height = width;
+          } else {
+            canvas.width = width;
+            canvas.height = height;
+          }
+
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((angle * Math.PI) / 180);
+          ctx.drawImage(img, -width / 2, -height / 2, width, height);
+
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          const base64 = dataUrl.split(',')[1];
+          resolve({ base64, mimeType: 'image/jpeg' });
+        };
+        img.onerror = () => reject(new Error('បរាជ័យក្នុងការរៀបចំរូបភាព'));
+        img.src = state.imageDataUrl;
+      });
+    }
+
+    // ==========================================
+    // 5. GEMINI API INTEGRATION (OCR + SPELLCHECK)
+    // ==========================================
+    const apiKey = ""; // Canvas provides runtime API key automatically
+    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+    async function fetchGeminiWithRetry(payload, maxRetries = 3) {
+      let delay = 1000;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const response = await fetch(GEMINI_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP_${response.status}`);
+          }
+
+          const result = await response.json();
+          const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!text) {
+            throw new Error('EMPTY_RESPONSE');
+          }
+          return text.trim();
+        } catch (err) {
+          if (attempt === maxRetries) throw err;
+          await new Promise(res => setTimeout(res, delay));
+          delay *= 2;
+        }
+      }
+    }
+
+    function getSystemInstructionForMode(mode) {
+      const baseRules = `អ្នកគឺជាអ្នកជំនាញភាសាខ្មែរ និងប្រព័ន្ធស្កេនអក្សរខ្មែរ (Khmer OCR & Orthography Expert) កម្រិតខ្ពស់បំផុត។
+គោលការណ៍សំខាន់ៗ៖
+១. ដកស្រង់អក្សរខ្មែរ លេខខ្មែរ លេខសកល និងពាក្យអង់គ្លេសទាំងអស់ចេញពីរូបភាពឱ្យបានត្រឹមត្រូវបំផុត ១០០%។
+២. ផ្ទៀងផ្ទាត់ និងកែតម្រូវអក្ខរាវិរុទ្ធខ្មែរតាមវចនានុក្រមសម្តេចព្រះសង្ឃរាជ ជួន ណាត និងអក្ខរាវិរុទ្ធផ្លូវការ (ឧទាហរណ៍៖ ជើងអក្សរ ត្រីសព្ទ ៊ មូសិកទន្ត ៉ ស្រៈពេញតួ និគ្គហិត ំ យុគលពិន្ទុ ៈ បន្តក់ ់ របាទ ៌ ទណ្ឌឃាត ៍) កុំឱ្យមានកំហុសដែលកើតពីការស្កេនព្រិល ឬដាច់អក្សរ។
+៣. ហាមបន្ថែមពាក្យពន្យល់ ឬសេចក្តីផ្តើមដូចជា "នេះគឺជាអត្ថបទ..." ឡើយ។ បង្ហាញតែលទ្ធផលអត្ថបទសុទ្ធសាធដែលបានដកស្រង់។`;
+
+      if (mode === 'table') {
+        return `${baseRules}
+៤. មុខងារពិសេស (តារាង និងបញ្ជីមុខទំនិញ)៖ រៀបចំឈ្មោះមុខទំនិញ បរិមាណ និងតម្លៃតាមជួរនីមួយៗឱ្យមានរបៀបរៀបរយ ងាយស្រួលអាន និងងាយស្រួល Copy យកទៅដាក់ក្នុង Excel ឬ Telegram។`;
+      } else if (mode === 'exact') {
+        return `អ្នកគឺជាប្រព័ន្ធ Khmer OCR ដែលមានភាពជាក់លាក់ខ្ពស់។ ដកស្រង់អក្សរទាំងអស់តាមរូបភាពដើមឱ្យបានត្រឹមត្រូវតាមជួរ និងទម្រង់ដើម ដោយកែតែតួអក្សរដែលស្កេនច្រឡំរូបរាងប៉ុណ្ណោះ។ ហាមបន្ថែមពាក្យពន្យល់ក្រៅពីអត្ថបទក្នុងរូបភាព។`;
+      }
+
+      return `${baseRules}
+៤. មុខងារពិសេស (កែអក្ខរាវិរុទ្ធ និងវេយ្យាករណ៍ស្វ័យប្រវត្តិ)៖ កែសម្រួលពាក្យខុសអក្ខរាវិរុទ្ធ និងឃ្លាឃ្លោងឱ្យត្រឹមត្រូវតាមក្បួនខ្នាតភាសាខ្មែរ ព្រមទាំងរក្សាការចុះបន្ទាត់ឱ្យស្អាត។`;
+    }
+
+    async function handleScanImage() {
+      if (!state.imageDataUrl) {
+        showAlert('សូមជ្រើសរើស ឬថតរូបភាពដែលមានអក្សរជាមុនសិន!');
+        triggerHaptic('error');
+        return;
+      }
+      if (state.isLoading) return;
+
+      hideAlert();
+      setLoadingState(true, 'កំពុងវិភាគរូបភាព និងផ្ទៀងផ្ទាត់អក្ខរាវិរុទ្ធខ្មែរ...');
+      triggerHaptic('medium');
+
+      try {
+        const { base64, mimeType } = await getProcessedBase64Image();
+
+        const userPrompt = state.mode === 'table'
+          ? 'សូមស្កេនរូបភាពនេះ ដកស្រង់បញ្ជីមុខទំនិញ ឬតារាងទាំងអស់ ហើយកែអក្ខរាវិរុទ្ធខ្មែរឱ្យត្រឹមត្រូវតាមជួរនីមួយៗ។'
+          : state.mode === 'exact'
+          ? 'សូមដកស្រង់អត្ថបទទាំងអស់ចេញពីរូបភាពនេះតាមទម្រង់ដើម។'
+          : 'សូមស្កេនរូបភាពនេះ ដកស្រង់អត្ថបទទាំងអស់ និងកែតម្រូវអក្ខរាវិរុទ្ធខ្មែរឱ្យបានច្បាស់លាស់ និងត្រឹមត្រូវបំផុត។';
+
+        const payload = {
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: userPrompt },
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: base64
+                  }
+                }
+              ]
+            }
+          ],
+          systemInstruction: {
+            parts: [{ text: getSystemInstructionForMode(state.mode) }]
+          },
+          generationConfig: {
+            temperature: 0.1
+          }
+        };
+
+        const extractedText = await fetchGeminiWithRetry(payload);
+        el.outputTextarea.value = extractedText;
+        updateTextStats();
+        saveToHistory(extractedText);
+        triggerHaptic('success');
+        showToast('ស្កេន និងកែអក្ខរាវិរុទ្ធរួចរាល់!');
+      } catch (error) {
+        console.error('OCR Error:', error);
+        triggerHaptic('error');
+        showAlert('មានបញ្ហាក្នុងការតភ្ជាប់ ឬរូបភាពមិនច្បាស់។ សូមពិនិត្យអ៊ីនធឺណិត ហើយព្យាយាមម្តងទៀត។');
+      } finally {
+        setLoadingState(false);
+      }
+    }
+
+    async function handleRecheckSpelling() {
+      const currentText = el.outputTextarea.value.trim();
+      if (!currentText) {
+        showAlert('មិនមានអត្ថបទសម្រាប់ផ្ទៀងផ្ទាត់អក្ខរាវិរុទ្ធទេ។ សូមស្កេនរូបភាព ឬវាយអត្ថបទជាមុនសិន។');
+        triggerHaptic('error');
+        return;
+      }
+      if (state.isLoading) return;
+
+      hideAlert();
+      setLoadingState(true, 'កំពុងពិនិត្យ និងកែតម្រូវអក្ខរាវិរុទ្ធខ្មែរឡើងវិញ...');
+      triggerHaptic('light');
+
+      try {
+        const payload = {
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `សូមពិនិត្យ និងកែតម្រូវអក្ខរាវិរុទ្ធខ្មែរនៃអត្ថបទខាងក្រោមនេះឱ្យបានត្រឹមត្រូវតាមវចនានុក្រមខ្មែរ ដោយរក្សាអត្ថន័យ និងការចុះបន្ទាត់ដើម (បង្ហាញតែអត្ថបទដែលកែរួចប៉ុណ្ណោះ)៖\n\n${currentText}`
+                }
+              ]
+            }
+          ],
+          systemInstruction: {
+            parts: [{ text: 'អ្នកគឺជាអ្នកជំនាញកែអក្ខរាវិរុទ្ធភាសាខ្មែរ។ កែតម្រូវពាក្យខុសអក្ខរាវិរុទ្ធ និងវេយ្យាករណ៍ខ្មែរឱ្យត្រឹមត្រូវឥតខ្ចោះ ដោយមិនបន្ថែមពាក្យពន្យល់អ្វីទាំងអស់។' }]
+          },
+          generationConfig: {
+            temperature: 0.1
+          }
+        };
+
+        const correctedText = await fetchGeminiWithRetry(payload);
+        el.outputTextarea.value = correctedText;
+        updateTextStats();
+        saveToHistory(correctedText);
+        triggerHaptic('success');
+        showToast('បានកែតម្រូវអក្ខរាវិរុទ្ធរួចរាល់!');
+      } catch (error) {
+        console.error('Spellcheck Error:', error);
+        triggerHaptic('error');
+        showAlert('មិនអាចកែអក្ខរាវិរុទ្ធបានទេនៅពេលនេះ សូមសាកល្បងម្តងទៀត។');
+      } finally {
+        setLoadingState(false);
+      }
+    }
+
+    function setLoadingState(loading, message = '') {
+      state.isLoading = loading;
+      el.btnScan.disabled = loading;
+      el.btnRecheckSpelling.disabled = loading;
+      if (message) el.loadingStatusText.textContent = message;
+
+      if (loading && state.imageDataUrl) {
+        el.scanOverlay.classList.remove('hidden');
+      } else {
+        el.scanOverlay.classList.add('hidden');
+      }
+    }
+
+    // ==========================================
+    // 6. CLIPBOARD COPY & SHARE (TELEGRAM SAFE)
+    // ==========================================
+    function copyTextToClipboard() {
+      const text = el.outputTextarea.value;
+      if (!text.trim()) {
+        showAlert('មិនមានអត្ថបទសម្រាប់ចម្លងទេ!');
+        triggerHaptic('error');
+        return;
+      }
+
+      // Reliable fallback using execCommand('copy') for Telegram iOS/Android WebViews & iFrames
+      try {
+        el.outputTextarea.focus();
+        el.outputTextarea.select();
+        el.outputTextarea.setSelectionRange(0, 999999);
+        const successful = document.execCommand('copy');
+        window.getSelection()?.removeAllRanges();
+
+        if (successful) {
+          triggerHaptic('success');
+          showToast('បានចម្លងអត្ថបទរួចរាល់!');
+          return;
+        }
+      } catch (err) {
+        console.debug('execCommand fallback error:', err);
+      }
+
+      // Secondary fallback
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          triggerHaptic('success');
+          showToast('បានចម្លងអត្ថបទរួចរាល់!');
+        }).catch(() => {
+          showAlert('សូមចុចឱ្យជាប់លើប្រអប់អត្ថបទ ដើម្បីចម្លងដោយដៃ។');
+        });
+      }
+    }
+
+    async function shareExtractedText() {
+      const text = el.outputTextarea.value.trim();
+      if (!text) {
+        showAlert('មិនមានអត្ថបទសម្រាប់ចែករំលែកទេ!');
+        triggerHaptic('error');
+        return;
+      }
+
+      triggerHaptic('light');
+
+      // 1. Native Web Share API if supported
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'អត្ថបទខ្មែរពីកម្មវិធីស្កេន',
+            text: text
+          });
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+        }
+      }
+
+      // 2. Telegram Share URL fallback
+      const encoded = encodeURIComponent(text);
+      const tgShareUrl = `https://t.me/share/url?url=&text=${encoded}`;
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(tgShareUrl);
+      } else {
+        window.open(tgShareUrl, '_blank');
+      }
+    }
+
+    // ==========================================
+    // 7. LOCAL HISTORY STORAGE
+    // ==========================================
+    function saveToHistory(text) {
+      if (!text || !text.trim()) return;
+      const cleanText = text.trim();
+      // Avoid duplicate top entry
+      if (state.history.length > 0 && state.history[0].text === cleanText) return;
+
+      const entry = {
+        id: Date.now(),
+        text: cleanText,
+        time: new Date().toLocaleTimeString('km-KH', { hour: '2-digit', minute: '2-digit' }),
+        date: new Date().toLocaleDateString('km-KH')
+      };
+
+      state.history.unshift(entry);
+      if (state.history.length > 20) state.history.pop();
+      localStorage.setItem('khmer_ocr_history_v1', JSON.stringify(state.history));
+      renderHistoryBadge();
+    }
+
+    function renderHistoryBadge() {
+      const count = state.history.length;
+      if (count > 0) {
+        el.historyBadge.textContent = count > 9 ? '9+' : count;
+        el.historyBadge.classList.remove('hidden');
+      } else {
+        el.historyBadge.classList.add('hidden');
+      }
+    }
+
+    function renderHistoryModal() {
+      el.historyList.innerHTML = '';
+      if (state.history.length === 0) {
+        el.historyList.innerHTML = `
+          <div class="text-center py-10 text-slate-400 text-sm">
+            មិនទាន់មានប្រវត្តិនៃការស្កេននៅឡើយទេ
+          </div>
+        `;
+        return;
+      }
+
+      state.history.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'bg-navy-900 hover:bg-navy-700/80 border border-navy-700 rounded-xl p-3.5 cursor-pointer transition flex flex-col gap-1.5';
+        card.innerHTML = `
+          <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <span>${item.date} - ម៉ោង ${item.time}</span>
+            <span class="text-crimson-500 font-medium">ជ្រើសរើស</span>
+          </div>
+          <p class="font-bokor-kh text-base text-slate-100 line-clamp-3 whitespace-pre-line">${escapeHtml(item.text)}</p>
+        `;
+        card.addEventListener('click', () => {
+          el.outputTextarea.value = item.text;
+          updateTextStats();
+          el.historyModal.classList.add('hidden');
+          triggerHaptic('light');
+          showToast('បានទាញយកអត្ថបទពីប្រវត្តិ');
+        });
+        el.historyList.appendChild(card);
+      });
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, (m) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[m]));
+    }
+
+    // ==========================================
+    // 8. EVENT LISTENERS
+    // ==========================================
+    // Mode Tabs
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => {
+          b.classList.remove('active', 'bg-crimson-600', 'text-white', 'shadow');
+          b.classList.add('bg-navy-900/70', 'text-slate-300');
+        });
+        btn.classList.remove('bg-navy-900/70', 'text-slate-300');
+        btn.classList.add('active', 'bg-crimson-600', 'text-white', 'shadow');
+        state.mode = btn.dataset.mode;
+        triggerHaptic('light');
+      });
+    });
+
+    // Font Size Buttons
+    document.querySelectorAll('.font-size-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.font-size-btn').forEach(b => {
+          b.classList.remove('active', 'bg-crimson-600', 'text-white');
+          b.classList.add('text-slate-300');
+        });
+        btn.classList.remove('text-slate-300');
+        btn.classList.add('active', 'bg-crimson-600', 'text-white');
+
+        el.outputTextarea.classList.remove('text-base', 'text-lg', 'text-xl');
+        el.outputTextarea.classList.add(btn.dataset.size);
+        triggerHaptic('light');
+      });
+    });
+
+    // Camera & Gallery Triggers
+    el.btnCamera.addEventListener('click', () => el.inputCamera.click());
+    el.btnGallery.addEventListener('click', () => el.inputGallery.click());
+    el.dropzone.addEventListener('click', () => el.inputGallery.click());
+
+    el.inputCamera.addEventListener('change', (e) => {
+      if (e.target.files?.[0]) loadImageFile(e.target.files[0]);
+      e.target.value = '';
+    });
+
+    el.inputGallery.addEventListener('change', (e) => {
+      if (e.target.files?.[0]) loadImageFile(e.target.files[0]);
+      e.target.value = '';
+    });
+
+    // Drag & Drop support
+    el.dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      el.dropzone.classList.add('border-crimson-500', 'bg-navy-800');
+    });
+    el.dropzone.addEventListener('dragleave', () => {
+      el.dropzone.classList.remove('border-crimson-500', 'bg-navy-800');
+    });
+    el.dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.dropzone.classList.remove('border-crimson-500', 'bg-navy-800');
+      if (e.dataTransfer.files?.[0]) loadImageFile(e.dataTransfer.files[0]);
+    });
+
+    // Paste Image from Clipboard (Ctrl+V & Paste Button)
+    window.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            loadImageFile(file);
+            showToast('បានបិទភ្ជាប់រូបភាពរួចរាល់!');
+          }
+          break;
+        }
+      }
+    });
+
+    el.btnPaste.addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.read) {
+          const clipboardItems = await navigator.clipboard.read();
+          for (const item of clipboardItems) {
+            const imgType = item.types.find(t => t.startsWith('image/'));
+            if (imgType) {
+              const blob = await item.getType(imgType);
+              loadImageFile(blob);
+              showToast('បានបិទភ្ជាប់រូបភាពរួចរាល់!');
+              return;
+            }
+          }
+          showAlert('មិនមានរូបភាពនៅក្នុង Clipboard ទេ។ សូម Copy រូបភាពជាមុនសិន។');
+        } else {
+          showAlert('សូមចុច Ctrl+V ឬ Paste ដោយផ្ទាល់លើអេក្រង់ដើម្បីបិទភ្ជាប់រូបភាព។');
+        }
+      } catch (err) {
+        showAlert('កម្មវិធីរុករកមិនអនុញ្ញាតឱ្យបើក Clipboard ដោយស្វ័យប្រវត្តិទេ សូមចុច Ctrl+V ឬជ្រើសរើសរូបភាពពីឧបករណ៍។');
+      }
+    });
+
+    // Image Manipulation Controls
+    el.btnRotateLeft.addEventListener('click', () => {
+      state.rotation -= 90;
+      renderImagePreview();
+      triggerHaptic('light');
+    });
+
+    el.btnRotateRight.addEventListener('click', () => {
+      state.rotation += 90;
+      renderImagePreview();
+      triggerHaptic('light');
+    });
+
+    el.btnToggleZoom.addEventListener('click', () => {
+      state.isZoomed = !state.isZoomed;
+      renderImagePreview();
+      triggerHaptic('light');
+    });
+
+    el.btnClearImage.addEventListener('click', () => {
+      state.imageDataUrl = null;
+      state.rotation = 0;
+      state.isZoomed = false;
+      renderImagePreview();
+      hideAlert();
+      triggerHaptic('light');
+    });
+
+    // Main Action Buttons
+    el.btnScan.addEventListener('click', handleScanImage);
+    el.btnRecheckSpelling.addEventListener('click', handleRecheckSpelling);
+    el.btnCopy.addEventListener('click', copyTextToClipboard);
+    el.btnShare.addEventListener('click', shareExtractedText);
+
+    el.btnClearText.addEventListener('click', () => {
+      el.outputTextarea.value = '';
+      updateTextStats();
+      hideAlert();
+      triggerHaptic('light');
+      showToast('បានលុបអត្ថបទរួចរាល់');
+    });
+
+    el.btnCloseAlert.addEventListener('click', hideAlert);
+    el.outputTextarea.addEventListener('input', updateTextStats);
+
+    // History Modal Events
+    el.btnOpenHistory.addEventListener('click', () => {
+      renderHistoryModal();
+      el.historyModal.classList.remove('hidden');
+      triggerHaptic('light');
+    });
+    el.btnCloseHistory.addEventListener('click', () => el.historyModal.classList.add('hidden'));
+    el.historyModal.addEventListener('click', (e) => {
+      if (e.target === el.historyModal) el.historyModal.classList.add('hidden');
+    });
+    el.btnClearHistory.addEventListener('click', () => {
+      state.history = [];
+      localStorage.removeItem('khmer_ocr_history_v1');
+      renderHistoryBadge();
+      renderHistoryModal();
+      triggerHaptic('light');
+    });
+
+    // Initial render
+    updateTextStats();
+    renderHistoryBadge();
+  </script>
+</body>
+</html>
